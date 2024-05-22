@@ -1,64 +1,34 @@
 const express = require("express");
-const bodyParser = require("body-parser");
-const jwt = require("jsonwebtoken");
-const dotenv = require("dotenv");
-
-dotenv.config(); // Charger les variables d'environnement
+const { Sequelize, DataTypes } = require("sequelize");
 
 const app = express();
-app.use(bodyParser.json());
+const axios = require("axios");
 
-const secretKey = process.env.SECRET_JWT;
+app.use(express.json());
 
-const rolePermissions = {
-  "owner": 1,
-  "keeper": 2,
-  "botanist": 3,
-  "admin": 4
-};
+require("./routes/routesMobile.js")(app);
+require("./routes/routesAdmin.js")(app);
+require("./routes/routesConnection.js")(app);
 
-// Contrôleur utilisateur
-const controllerUser = require("../controllers/controllerUser.js");
-
-// Routes d'authentification
-const router = express.Router();
-router.post("/login_user", controllerUser.loginUser);
-router.post("/verify_token", controllerUser.verifyToken);
-
-// Route pour vérifier les rôles
-router.post("/verify_role", (req, res) => {
-  const token = req.body.token;
-  const requiredRole = req.body.requiredRole;
-
-  if (!token) {
-    return res.status(401).json({ message: "No token provided." });
-  }
-
-  try {
-    const decoded = jwt.verify(token, secretKey);
-    const userFromDB = { id: decoded.id, role: decoded.role };
-
-    if (rolePermissions[userFromDB.role] >= rolePermissions[requiredRole]) {
-      res.json({ valid: true, decoded });
-    } else {
-      res.status(403).json({ message: "Access denied. Insufficient role." });
-    }
-  } catch (error) {
-    res.status(418).json({
-      message: "Invalid token.",
-      error: process.env.NODE_ENV === "development" ? {
-        message: error.message,
-        stack: error.stack,
-        token: token,
-        details: error.details || "No additional details"
-      } : undefined
-    });
-  }
+const sequelize = new Sequelize({
+  sync: false,
+  dialect: "sqlite",
+  storage: "db.sqlite",
 });
 
-app.use("/api/auth", router);
-
-const PORT = process.env.AUTH_PORT || 8081;
-app.listen(PORT, () => {
-  console.log(`Auth server is running on port ${PORT}.`);
+const PORT = process.env.PORT || 8080;
+const server = app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}.`);
 });
+
+const db = require("./models/index.js");
+
+db.sequelize.sync()
+  .then(() => {
+    console.log("Synced db.");
+  })
+  .catch((err) => {
+    console.log("Failed to sync db: " + err.message);
+  });
+
+module.exports = server;
